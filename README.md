@@ -339,7 +339,7 @@ The 30-element state vector stored internally is `[r(3), v(3), ω_c(3), ω_s(3),
 |---|---|---|---|
 | 0:3   | **r**   | Relative position (secondary w.r.t. primary), in A frame | km (internal) / m (API) |
 | 3:6   | **v**   | Relative velocity, in A frame | km/s / m/s |
-| 6:9   | **ω_c** | Primary angular velocity, in A frame | rad/s |
+| 6:9   | **ω_c** | Primary angular velocity, in A frame | rad/s |jj
 | 9:12  | **ω_s** | Secondary angular velocity, in B frame | rad/s |
 | 12:21 | **C_c** | Rotation matrix N→A, row-major | — |
 | 21:30 | **C**   | Rotation matrix A→B, row-major | — |
@@ -352,6 +352,9 @@ The C++ layer works in **km, kg, s**. The Python API converts all inputs from SI
 
 - Hou, X., Scheeres, D.J., & Xin, X. (2016). Mutual potential between two rigid bodies with arbitrary shapes and mass distributions. *Celestial Mechanics and Dynamical Astronomy*, 124(1), 67–82.
 - Davis, A.B. & Scheeres, D.J. (2020). Doubly synchronous binary asteroid mass parameter observability. *Icarus*, 341. https://doi.org/10.1016/j.icarus.2019.113439
+
+If you use the flyby or solar tide functionality:
+- Alex J. Meyer and Daniel J. Sceeres, The effect of planetary flybys on singly synchronous binary asteroids, Icarus, Vol. 367 (2021), https://doi.org/10.1016/j.icarus.2021.114554
 
 ---
 
