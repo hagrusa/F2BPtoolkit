@@ -35,12 +35,17 @@ mat tilde_opv(mat A){
 // ─────────────────────────────────────────────────────────────────────────────
 
 void tk_calc(int m, mat* t){
+    // Compute the t_{n,k} expansion coefficients from Hou 2016 Table 1.
+    // t is stored as a matrix: row n, column k/2 (k steps by 2 from fmod(n,2)).
     for(int n=0;n<m+1;n++){
+        // Seed value t_{n,0}: closed-form differs for odd vs. even n
         if(n%2){
             (*t)(n,0)=pow(-1.,(n-1.)/2.)*factorial((double)n)/(pow(2.,n-1.)*pow(factorial((n-1.)/2.),2.));
         } else {
             (*t)(n,0)=pow(-1.,n/2.)*factorial((double)n)/(pow(2.,n)*pow(factorial(n/2.),2.));
         }
+        // Recursion: t_{n,k+2} = -(n-k)(n+k+1)/((k+2)(k+1)) * t_{n,k}
+        // k starts at fmod(n,2) so only even or odd k values are filled for a given n
         double k=fmod(n,2.);
         int i=1;
         while(k<=n){
@@ -61,8 +66,13 @@ int t_ind(int a, int b, int c, int d, int e, int f, int g, int dim){
 }
 
 void a_calc(int n, sp_mat* a){
+    // Compute a_{k,i1,i2,i3,i4,i5,i6} expansion coefficients from Hou 2016.
+    // These encode the multinomial expansion of (e·r_A)^k * (e·r_B)^(n-k)
+    // where i1,i2,i3 count x,y,z contributions from body A and i4,i5,i6 from body B.
+    // The 7-D index set is flattened to 1-D via t_ind().
     (*a)(0,0)=1;
     if(n>0){
+        // Seed: order-1 coefficients by inspection from Hou
         (*a)(0,t_ind(1,1,0,0,0,0,0,n+1))=1;
         (*a)(0,t_ind(1,0,1,0,0,0,0,n+1))=1;
         (*a)(0,t_ind(1,0,0,1,0,0,0,n+1))=1;
@@ -70,13 +80,22 @@ void a_calc(int n, sp_mat* a){
         (*a)(0,t_ind(1,0,0,0,0,1,0,n+1))=-1;
         (*a)(0,t_ind(1,0,0,0,0,0,1,n+1))=-1;
         if(n>1){
+            // Build higher-order coefficients via the Hou recursion.
+            // Outer loop: expansion order k from 2 up to n.
             for(int k=2;k<n+1;k++){
+                // Inner 6 loops enumerate all index tuples (i1..i6) with i1+..+i6 <= k.
+                // i6 is the "remainder" index: i6 = k - i1 - i2 - i3 - i4 - i5,
+                // so the loop upper bounds enforce i1+..+i6 == k exactly.
                 for(int i1=0;i1<k+1;i1++){
                     for(int i2=0;i2<k+1-i1;i2++){
                         for(int i3=0;i3<k+1-i1-i2;i3++){
                             for(int i4=0;i4<k+1-i1-i2-i3;i4++){
                                 for(int i5=0;i5<k+1-i1-i2-i3-i4;i5++){
                                     for(int i6=0;i6<k+1-i1-i2-i3-i4-i5;i6++){
+                                        // Recursion: a(k,i) = sum over each index that can be
+                                        // decremented by 1, adding or subtracting the order-(k-1)
+                                        // coefficient. i1,i2,i3 (body A) contribute positively;
+                                        // i4,i5,i6 (body B / cross terms) contribute negatively.
                                         if(i1>0) (*a)(0,t_ind(k,i1,i2,i3,i4,i5,i6,n+1))+=(*a)(0,t_ind(k-1,i1-1,i2,i3,i4,i5,i6,n+1));
                                         if(i2>0) (*a)(0,t_ind(k,i1,i2,i3,i4,i5,i6,n+1))+=(*a)(0,t_ind(k-1,i1,i2-1,i3,i4,i5,i6,n+1));
                                         if(i3>0) (*a)(0,t_ind(k,i1,i2,i3,i4,i5,i6,n+1))+=(*a)(0,t_ind(k-1,i1,i2,i3-1,i4,i5,i6,n+1));
@@ -95,8 +114,14 @@ void a_calc(int n, sp_mat* a){
 }
 
 void b_calc(int n, sp_mat* b){
+    // Compute b_{k,j1..j6} expansion coefficients from Hou 2016.
+    // The b coefficients encode the Laplacian-based correction terms that appear
+    // in the mutual potential when expanding 1/|r|^n.  They satisfy a different
+    // recursion from the a coefficients: b(m) depends on b(m-2) (steps of 2),
+    // which is why k descends from n and the (n-k)>2 guard skips the seeded orders.
     (*b)(0,0)=1;
     if(n>1){
+        // Seed: order-2 coefficients set directly from Hou
         (*b)(0,t_ind(2,2,0,0,0,0,0,n+1))=1;
         (*b)(0,t_ind(2,0,2,0,0,0,0,n+1))=1;
         (*b)(0,t_ind(2,0,0,2,0,0,0,n+1))=1;
@@ -106,7 +131,11 @@ void b_calc(int n, sp_mat* b){
         (*b)(0,t_ind(2,1,0,0,1,0,0,n+1))=-2;
         (*b)(0,t_ind(2,0,1,0,0,1,0,n+1))=-2;
         (*b)(0,t_ind(2,0,0,1,0,0,1,n+1))=-2;
+        // Outer loop descends k from n to 0; the effective expansion order is (n-k).
+        // Orders 0 and 2 are already seeded above, so the recursion only fires for (n-k)>2.
         for(int k=n;k>-1;k--){
+            // Inner 6 loops enumerate index tuples (j1..j6) with j1+..+j6 <= (n-k),
+            // same flattening convention as a_calc.
             for(int j1=0;j1<n-k+1;j1++){
                 for(int j2=0;j2<n-k+1-j1;j2++){
                     for(int j3=0;j3<n-k+1-j1-j2;j3++){
@@ -114,6 +143,9 @@ void b_calc(int n, sp_mat* b){
                             for(int j5=0;j5<n-k+1-j1-j2-j3-j4;j5++){
                                 for(int j6=0;j6<n-k+1-j1-j2-j3-j4-j5;j6++){
                                     if((n-k)>2){
+                                        // Recursion: cross terms (j_i>0 && j_{i+3}>0) subtract 2× b at order-2,
+                                        // diagonal terms (j_i>1) add b at order-2.
+                                        // This mirrors the action of the Laplacian operator on the polynomial basis.
                                         if(j1>0&&j4>0) (*b)(0,t_ind(n-k,j1,j2,j3,j4,j5,j6,n+1))+=-2*(*b)(0,t_ind(n-k-2,j1-1,j2,j3,j4-1,j5,j6,n+1));
                                         if(j2>0&&j5>0) (*b)(0,t_ind(n-k,j1,j2,j3,j4,j5,j6,n+1))+=-2*(*b)(0,t_ind(n-k-2,j1,j2-1,j3,j4,j5-1,j6,n+1));
                                         if(j3>0&&j6>0) (*b)(0,t_ind(n-k,j1,j2,j3,j4,j5,j6,n+1))+=-2*(*b)(0,t_ind(n-k-2,j1,j2,j3-1,j4,j5,j6-1,n+1));
@@ -146,6 +178,15 @@ double tet_sums(double l, double m, double n,
                 double x1, double x2, double x3,
                 double y1, double y2, double y3,
                 double z1, double z2, double z3){
+    // Compute the tetrahedron summation for inertia integral T_{l,m,n} from Hou 2016.
+    // A tetrahedron has one vertex at the origin and three others at (x1,y1,z1),
+    // (x2,y2,z2), (x3,y3,z3).  The integral of x^l * y^m * z^n over this tet has
+    // a closed form as a triple multinomial sum (see Hou eq. for T_lmn).
+    //
+    // Each pair of loops (i1,j1), (i2,j2), (i3,j3) is a multinomial expansion
+    // of (x1+x2+x3)^l, (y1+y2+y3)^m, (z1+z2+z3)^n respectively.
+    // The "remainder" exponent in each triplet is (l-i1-j1), (m-i2-j2), (n-i3-j3).
+    // Q_ijk then provides the weighting factor from the integral over the standard simplex.
     double sum_val=0.;
     for(double i1=0.;i1<(l+1.);i1++){
         for(double j1=0.;j1<(l-i1+1.);j1++){
@@ -197,16 +238,29 @@ void poly_inertia_met(int q, double rho, string tet_file, string vert_file, cube
 }
 
 void inertia_rot(mat C, int q, cube* T, cube* Tp){
+    // Rotate the inertia integral set T (principal-frame of body B) into the A frame
+    // using rotation matrix C (transforms B coords to A coords).
+    // The rotation formula expands each monomial x^l*y^m*z^n in terms of the rotated
+    // coordinates using the multinomial theorem applied to each row of C.
+    // See Hou 2016 eq. for T'_{l,m,n}.
     (*Tp).zeros(q+1,q+1,q+1);
+    // Outer triple loop: iterate over every (l,m,n) output inertia integral index
     for(int l=0;l<(q+1);l++){
         for(int m=0;m<(q+1-l);m++){
             for(int n=0;n<(q+1-l-m);n++){
+                // Inner 6 loops: multinomial expansion for each row of C.
+                // Row 0 of C: C(0,0)^i1 * C(0,1)^j1 * C(0,2)^(l-i1-j1)
+                // Row 1 of C: C(1,0)^i2 * C(1,1)^j2 * C(1,2)^(m-i2-j2)
+                // Row 2 of C: C(2,0)^i3 * C(2,1)^j3 * C(2,2)^(n-i3-j3)
+                // These index the original (unrotated) inertia integral T at
+                // (i1+i2+i3, j1+j2+j3, remainder), hence the constraint check below.
                 for(double i1=0.;i1<(l+1.);i1++){
                     for(double j1=0.;j1<(l-i1+1.);j1++){
                         for(double i2=0.;i2<(m+1.);i2++){
                             for(double j2=0.;j2<(m-i2+1.);j2++){
                                 for(double i3=0.;i3<(n+1.);i3++){
                                     for(double j3=0.;j3<(n-i3+1.);j3++){
+                                        // Guard: combined indices must stay within the truncated cube
                                         if(((i1+i2+i3)<=q)&&((j1+j2+j3)<=q)&&((l+m+n-i1-i2-i3-j1-j2-j3)<=q)){
                                             (*Tp)(l,m,n)+=(factorial((double)l)/(factorial((double)i1)*factorial((double)j1)*factorial((double)l-i1-j1)))
                                                 *(factorial((double)m)/(factorial((double)i2)*factorial((double)j2)*factorial((double)(m-i2-j2))))
@@ -288,21 +342,32 @@ void ell_mass_params_met(double order, double order_body, double rho,
 
 double u_tilde(int dim, int n, mat* t, sp_mat* a, sp_mat* b,
                mat e, cube* TA, cube* TBp){
+    // Compute u_tilde_n: the order-n kernel of the mutual potential expansion (Hou 2016).
+    // The full potential is U = -G * sum_{n=0}^{N} u_tilde_n / R^(n+1).
+    // u_tilde_n = sum_k t_{n,k/2} * [sum over i,j: a(k,i)*b(n-k,j)*e^(i+j)*TA(i')*TBp(j')]
+    //
+    // k descends from n by 2s (parity of Legendre polynomial — only even/odd harmonics survive).
+    // The i1..i5 loops enumerate index k-tuples for body A's contribution;
+    // the j1..j5 loops enumerate (n-k)-tuples for body B's contribution.
+    // i6 and j6 are determined by the constraint that all indices sum to k and (n-k) respectively.
     mat u((*t).n_cols,1);
     u.zeros();
     for(int k=n;k>-1;k-=2){
+        // i1..i6 index the powers of e in body A's terms: e_x^(i1+i4) * e_y^(i2+i5) * e_z^(i3+i6)
         for(int i1=0;i1<k+1;i1++){
             for(int i2=0;i2<k+1-i1;i2++){
                 for(int i3=0;i3<k+1-i1-i2;i3++){
                     for(int i4=0;i4<k+1-i1-i2-i3;i4++){
                         for(int i5=0;i5<k+1-i1-i2-i3-i4;i5++){
+                            // j1..j6 index the powers of e in body B's terms
                             for(int j1=0;j1<n-k+1;j1++){
                                 for(int j2=0;j2<n-k+1-j1;j2++){
                                     for(int j3=0;j3<n-k+1-j1-j2;j3++){
                                         for(int j4=0;j4<n-k+1-j1-j2-j3;j4++){
                                             for(int j5=0;j5<n-k+1-j1-j2-j3-j4;j5++){
-                                                int i6=k-i1-i2-i3-i4-i5;
-                                                int j6=n-k-j1-j2-j3-j4-j5;
+                                                int i6=k-i1-i2-i3-i4-i5;   // remainder for A
+                                                int j6=n-k-j1-j2-j3-j4-j5; // remainder for B
+                                                // Accumulate: a*b * e^(combined powers) * TA * TBp
                                                 u(k/2,0)+=(*a)(0,t_ind(k,i1,i2,i3,i4,i5,i6,dim+1))
                                                     *(*b)(0,t_ind(n-k,j1,j2,j3,j4,j5,j6,dim+1))
                                                     *pow(e(0,0),(i1+i4))*pow(e(0,1),(i2+i5))
@@ -319,6 +384,7 @@ double u_tilde(int dim, int n, mat* t, sp_mat* a, sp_mat* b,
                 }
             }
         }
+        // Apply the t_{n,k/2} weight to this k-slice, then sum over all k slices via accu()
         u(k/2,0)=u(k/2,0)*(*t)(n,k/2);
     }
     return accu(u);
@@ -326,9 +392,16 @@ double u_tilde(int dim, int n, mat* t, sp_mat* a, sp_mat* b,
 
 double du_dx_tilde(int dim, int n, mat* t, sp_mat* a, sp_mat* b,
                    mat e, double R, int dx, cube* TA, cube* TBp){
+    // Partial derivative of u_tilde_n with respect to position component x[dx].
+    // The only part of u_tilde that depends on x[dx] is the e^(power) factor,
+    // since e = r/R and both e and R depend on x.
+    // ce is the derivative of e_x^(i1+i4) * e_y^(i2+i5) * e_z^(i3+i6) w.r.t. x[dx],
+    // computed via the product rule.  Each of the 8 if/else branches handles a case
+    // where one or more of the three exponents is zero (which would cause a negative power).
     mat du((*t).n_cols,1);
     double ce,de_dx0,de_dx1,de_dx2;
     du.zeros();
+    // Pre-compute de_i/dx[dx] for each unit-vector component (see de_dx())
     de_dx0=de_dx(e,R,0,dx);
     de_dx1=de_dx(e,R,1,dx);
     de_dx2=de_dx(e,R,2,dx);
@@ -383,10 +456,15 @@ double du_dx_tilde(int dim, int n, mat* t, sp_mat* a, sp_mat* b,
 }
 
 double de_dx(mat e, double R, int de, int dx){
+    // Partial of unit-vector component e[de] = x[de]/R with respect to x[dx].
+    // When de==dx:   d(x_i/R)/dx_i = (R^2 - x_i^2)/R^3 = (sum of other x_j^2)/R^3
+    //   The loop shifts the index array so ind[] holds the two "other" component indices.
+    // When de!=dx:   d(x_de/R)/dx_dx = -x_de * x_dx / R^3  (off-diagonal term)
     mat x=R*e;
     double val;
     if(de==dx){
         int ind[]={0,1,2};
+        // Shift ind so that ind[0] and ind[1] hold the two indices != dx
         for(int i=dx;i<2;i++){ ind[i]=ind[i+1]; }
         val=(pow(x(0,ind[0]),2)+pow(x(0,ind[1]),2))/pow(R,3);
     } else {
@@ -396,8 +474,16 @@ double de_dx(mat e, double R, int de, int dx){
 }
 
 void dT_dc(int i, int j, mat C, int q, cube* TA, cube* dT){
+    // Partial of the rotated inertia integral T'_{l,m,n} with respect to C(i,j).
+    // T' is computed by inertia_rot(), which contains powers of every element of C.
+    // Differentiating that expression with respect to C(i,j) picks out only the terms
+    // where C(i,j) appears (i.e. row i of C) and reduces its exponent by 1.
+    // c holds that derivative of the rotation-matrix power product for a given (i1..j3) tuple.
+    // The outer (i,j) arguments identify which element of C we are differentiating against.
     double c;
     (*dT).zeros(q+1,q+1,q+1);
+    // Same loop structure as inertia_rot: (l,m,n) are output integral indices,
+    // inner 6 loops are the multinomial expansion indices.
     for(int l=0;l<(q+1);l++){
         for(int m=0;m<(q+1-l);m++){
             for(int n=0;n<(q+1-l-m);n++){
@@ -409,6 +495,10 @@ void dT_dc(int i, int j, mat C, int q, cube* TA, cube* dT){
                                     for(double j3=0.;j3<(n-i3+1.);j3++){
                                         if(((i1+i2+i3)<=q)&&((j1+j2+j3)<=q)&&((l+m+n-i1-i2-i3-j1-j2-j3)<=q)){
                                             c=0.;
+                                            // Row i=0: C(0,j) contributes to powers i1, j1, (l-i1-j1)
+                                            // Row i=1: C(1,j) contributes to powers i2, j2, (m-i2-j2)
+                                            // Row i=2: C(2,j) contributes to powers i3, j3, (n-i3-j3)
+                                            // The conditionals guard against differentiating a zero exponent.
                                             if(i==0){
                                                 if(j==0&&i1>0) c=i1*pow(C(0,0),(i1-1.))*pow(C(0,1),j1)*pow(C(0,2),(l-i1-j1))*pow(C(1,0),i2)*pow(C(1,1),j2)*pow(C(1,2),(m-i2-j2))*pow(C(2,0),i3)*pow(C(2,1),j3)*pow(C(2,2),(n-i3-j3));
                                                 else if(j==1&&j1>0) c=j1*pow(C(0,0),i1)*pow(C(0,1),(j1-1.))*pow(C(0,2),(l-i1-j1))*pow(C(1,0),i2)*pow(C(1,1),j2)*pow(C(1,2),(m-i2-j2))*pow(C(2,0),i3)*pow(C(2,1),j3)*pow(C(2,2),(n-i3-j3));
@@ -511,15 +601,24 @@ double potential(double G, int m, mat* t, sp_mat* a, sp_mat* b,
 // ─────────────────────────────────────────────────────────────────────────────
 
 double kepler(double* n_hyp, double t, double* e_hyp, double* tau_hyp){
+    // Solve Kepler's equation for true anomaly theta at time t.
+    // M = n*(t - tau) is the mean anomaly.
+    // For hyperbolic orbits (e>1): solve M = e*sinh(H) - H for hyperbolic anomaly H,
+    //   then convert to true anomaly via the hyperbolic half-angle formula.
+    // For elliptic orbits (e<=1): solve M = E - e*sin(E) for eccentric anomaly E,
+    //   then convert to true anomaly via the elliptic half-angle formula.
+    // Both use Newton-Raphson iteration: x_{n+1} = x_n - f(x_n)/f'(x_n)
     double M=(*n_hyp)*(t-(*tau_hyp));
     double tol=0.001;
     double f,df,theta;
     if((*e_hyp)>1){
         double H=M;
+        // Clamp initial guess to the physical range for hyperbolic orbit
         if(abs(H)>acos(-1/(*e_hyp))){
             H=(H>0)?acos(-1/(*e_hyp)):-acos(-1/(*e_hyp));
         }
         f=M-(*e_hyp)*sinh(H)+H;
+        // Newton-Raphson: residual f = M - e*sinh(H) + H, derivative df = -e*cosh(H) + 1
         while(abs(f)>tol){
             f=M-(*e_hyp)*sinh(H)+H;
             df=-(*e_hyp)*cosh(H)+1;
@@ -530,6 +629,7 @@ double kepler(double* n_hyp, double t, double* e_hyp, double* tau_hyp){
     } else {
         double E=M;
         f=E-M-(*e_hyp)*sin(E);
+        // Newton-Raphson: residual f = E - M - e*sin(E), derivative df = 1 - e*cos(E)
         while(abs(f)>tol){
             f=E-M-(*e_hyp)*sin(E);
             df=1-(*e_hyp)*cos(E);
@@ -623,6 +723,15 @@ void md_tidal_torque(mat* pos, mat* vel, mat* w1, mat* w2,
 // ─────────────────────────────────────────────────────────────────────────────
 
 mat hou_ode(mat x, mat t, parameters inputs){
+    // Full F2BP equations of motion from Hou 2016.
+    // State vector x is 1×30:
+    //   [0:2]  r   — relative position vector (A frame, km)
+    //   [3:5]  v   — relative velocity vector (A frame, km/s)
+    //   [6:8]  wc  — primary angular velocity (A frame, rad/s)
+    //   [9:11] ws  — secondary angular velocity (inertial frame, rad/s)
+    //   [12:20] Cc — inertial-to-A DCM, stored row-major as 9 scalars
+    //   [21:29] C  — secondary-to-A DCM, stored row-major as 9 scalars
+    // The DCMs are extracted row-major and then transposed so columns = body axes.
     mat r=x.cols(0,2);
     mat v=x.cols(3,5);
     mat wc=x.cols(6,8);
@@ -792,6 +901,12 @@ void map_potential_partials(mat* C, mat* r, parameters inputs,
 
 void F_cayley_calc(double h, mat* g, mat* I, mat* f,
                    mat* F, mat* G, mat* grad_G){
+    // Solve for the rotation vector f used in the LGVI integrator via the Cayley map.
+    // The Cayley map relates a 3-vector f to a rotation matrix F = (I+f~)(I-f~)^{-1}.
+    // We need f satisfying: g + g×f + (g·f)f - 2*I*f = 0  (nonlinear equation in f).
+    // Newton-Raphson iteration: f_{n+1} = f_n - grad_G^{-1} * G(f_n)
+    // g is scaled by h before the iteration so f is dimensionless.
+    // If Newton fails (> 100 iterations), fall back to the exponential map solver.
     (*f).fill(.0001);
     (*G)=ones(3,1);
     (*g)=h*(*g);
@@ -802,6 +917,7 @@ void F_cayley_calc(double h, mat* g, mat* I, mat* f,
         (*f)=(*f)+inv(*grad_G)*(- (*G));
         check++;
         if(check>100){
+            // Cayley map Newton didn't converge; try exponential map
             double cay_err=norm(*G);
             mat cay_f=(*f);
             F_exp_calc(h,g,I,f,F,G,grad_G);
@@ -810,12 +926,19 @@ void F_cayley_calc(double h, mat* g, mat* I, mat* f,
         }
     }
     if(check<=100){
+        // Converged: assemble the rotation matrix from f via the Cayley formula
         (*F)=(eye(3,3)+tilde_opv(*f))*inv(eye(3,3)-tilde_opv(*f));
     }
 }
 
 void F_exp_calc(double h, mat* g, mat* I, mat* f,
                 mat* F, mat* G, mat* grad_G){
+    // Fallback rotation solver using the exponential (Rodrigues) map.
+    // Finds f (rotation axis × angle) such that the exponential map gives rotation matrix F.
+    // The equation to solve is: G(f) = sin(|f|)*I*f/|f| + (1-cos|f|)*f×(I*f)/|f|^2 = g
+    // grad_G is the Jacobian of G w.r.t. f (analytic expression).
+    // Newton-Raphson: f_{n+1} = f_n + grad_G^{-1} * (g - G(f_n))
+    // F is then assembled from f via Rodrigues' formula: F = I + sin|f|*f~ + (1-cos|f|)*f~^2
     int check=0;
     (*f).fill(.1);
     (*G)=ones(3,1);
@@ -829,6 +952,7 @@ void F_exp_calc(double h, mat* g, mat* I, mat* f,
         check++;
         if(check>100){ break; }
     }
+    // Rodrigues' formula for the rotation matrix given rotation vector f
     (*F)=eye(3,3)+sin(norm(*f))*tilde_opv(*f)/norm(*f)+(1.-cos(norm(*f)))*tilde_opv(*f)*tilde_opv(*f)/pow(norm(*f),2);
 }
 
@@ -924,8 +1048,9 @@ static void rk4_lib(double t0, double tf, mat x0, double h, double out_freq,
 
     while(t<tf){
         double dt=h;
-        if(t+dt>tf) dt=tf-t;
+        if(t+dt>tf) dt=tf-t;  // clamp last step to hit tf exactly
 
+        // RK4 stage evaluations at t, t+dt/2 (twice), and t+dt
         mat tm(1,1); tm(0,0)=t;
         mat th2(1,1); th2(0,0)=t+dt*0.5;
         mat th(1,1);  th(0,0)=t+dt;
@@ -1013,18 +1138,22 @@ static void rk87_lib(double t0, double tf, mat x0, double rel_tol, double out_fr
     if(decimate) t_next+=out_freq;
 
     while(t<tf){
-        if(t+h>tf) h=tf-t;
+        if(t+h>tf) h=tf-t;  // clamp step to hit tf exactly
         mat tm(1,1); tm(0,0)=t;
+        // Stage 0: derivative at current state
         f.col(0)=hou_ode(x,tm,inp);
+        // Stages 1-12: each stage uses previous stage derivatives weighted by Butcher tableau columns
         for(int j=1;j<13;j++){
             mat tc(1,1); tc(0,0)=t+c_i(j-1,0)*h;
             f.col(j)=hou_ode(x+h*trans(f*a_i_j.col(j-1)),tc,inp);
         }
+        // 8th-order and 7th-order solutions; error estimate is their difference
         mat sol1=x+h*trans(f*b_8);
         mat sol2=x+h*trans(f*b_7);
         double err=abs(norm(sol1-sol2,"inf"));
         double tau=rel_tol*norm(x,"inf");
         if(err<=tau){
+            // Accept step: advance using the 7th-order solution
             t+=h; x=sol2;
             if(*inp.flyby_toggle){
                 f0_hyp=kepler(inp.n_hyp,t,inp.e_hyp,inp.tau_hyp);
@@ -1040,9 +1169,10 @@ static void rk87_lib(double t0, double tf, mat x0, double rel_tol, double out_fr
                 if(decimate) t_next+=out_freq;
             }
         }
-        if(err==0.) err=10.*eps;
+        if(err==0.) err=10.*eps;  // avoid divide-by-zero in step size update
+        // Standard adaptive step size formula: h_new = 0.9 * h * (tau/err)^(1/8)
         h=fmin(hmax,0.9*h*pow(tau/err,powv));
-        if(abs(h)<=eps) break;
+        if(abs(h)<=eps) break;  // step size collapsed — stop
     }
 }
 
@@ -1080,23 +1210,28 @@ static void ABM_lib(double t0, double tf, mat x0, double h, double out_freq,
         mat y_new;
 
         if(startup<3){
-            // RK4 startup — need 3 steps to seed f1,f2,f3
+            // RK4 startup — ABM needs 4 derivative history points (f0..f3).
+            // We use 3 RK4 steps to populate f1, f2, f3 before switching to ABM.
             mat k1=hou_ode(y,             tm, inp);
             mat k2=hou_ode(y+(dt/2.)*k1.t(),th2,inp);
             mat k3=hou_ode(y+(dt/2.)*k2.t(),th2,inp);
             mat k4=hou_ode(y+dt*k3.t(),   th, inp);
             y_new=y+(dt/6.)*(k1.t()+2.*k2.t()+2.*k3.t()+k4.t());
-            // store derivative at start of this step into rolling history
+            // Store derivative at the start of this step into the rolling history.
+            // After 3 startup steps: f3=deriv at t0, f2=deriv at t0+h, f1=deriv at t0+2h
             if(startup==0) f3=k1;
             else if(startup==1) f2=k1;
             else f1=k1;
             startup++;
         } else {
-            // ABM predictor-corrector
+            // Adams-Bashforth 4th-order predictor, then Adams-Moulton 4th-order corrector.
+            // Predictor uses the last 4 derivatives (f0=current, f1=prev, f2=2prev, f3=3prev).
             f0=hou_ode(y,tm,inp);
             mat y_pred=y+(dt/24.)*(55.*f0.t()-59.*f1.t()+37.*f2.t()-9.*f3.t());
-            mat f_p=hou_ode(y_pred,th,inp);
+            mat f_p=hou_ode(y_pred,th,inp);  // derivative at predicted state
+            // Corrector uses the predicted derivative f_p alongside the 3 previous derivatives
             y_new=y+(dt/24.)*(9.*f_p.t()+19.*f0.t()-5.*f1.t()+f2.t());
+            // Shift derivative history by one step
             f3=f2; f2=f1; f1=f0;
         }
 
@@ -1126,7 +1261,9 @@ static void LGVI_lib(double t0, double tf, mat x0, double h, double out_freq,
     bool decimate=(out_freq>0.0);
     double t_next=t0;
 
-    // Modified MOI for LGVI
+    // Modified (non-standard) moments of inertia used by the LGVI Hamiltonian map.
+    // IdA = 2*(tr(IA)/2 * I3 - IA), which is the "dual" MOI needed for the
+    // discrete-time angular momentum update in the Lie-group variational integrator.
     (*(inp.IdA))=2.*(0.5*trace(diagmat(*(inp.IA)))*eye(3,3)-diagmat(*(inp.IA)));
     (*(inp.IdB))=2.*(0.5*trace(diagmat(*(inp.IB)))*eye(3,3)-diagmat(*(inp.IB)));
 
