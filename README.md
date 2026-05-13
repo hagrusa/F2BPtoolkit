@@ -86,7 +86,7 @@ sim.set_state(
     position        = [1195.0, 0.0, 0.0],   # m, in primary body frame
     velocity        = [0.0, 0.1735, 0.0],    # m/s
     omega_primary   = [0.0, 0.0, 7.26e-4],  # rad/s
-    omega_secondary = [0.0, 0.0, 7.26e-4],
+    omega_secondary = [0.0, 0.0, 7.26e-4],   # rad/s, in primary body frame (A)
 )
 
 # Run for 50 days with RK4, recording every 30 steps
@@ -161,7 +161,7 @@ sim.set_state(
     position        = [rx, ry, rz],   # m, secondary w.r.t. primary in A frame
     velocity        = [vx, vy, vz],   # m/s, in A frame
     omega_primary   = [wx, wy, wz],   # rad/s, in A frame
-    omega_secondary = [wx, wy, wz],   # rad/s, in secondary body frame (B)
+    omega_secondary = [wx, wy, wz],   # rad/s, in primary body frame (A)
     A_to_N = np.eye(3),               # A→N rotation matrix (optional)
     B_to_A = np.eye(3),               # B→A rotation matrix (optional)
 )
@@ -340,7 +340,7 @@ The 30-element state vector stored internally is `[r(3), v(3), ω_c(3), ω_s(3),
 | 0:3   | **r**   | Relative position (secondary w.r.t. primary), in A frame | km (internal) / m (API) |
 | 3:6   | **v**   | Relative velocity, in A frame | km/s / m/s |
 | 6:9   | **ω_c** | Primary angular velocity, in A frame | rad/s |
-| 9:12  | **ω_s** | Secondary angular velocity, in B frame | rad/s |
+| 9:12  | **ω_s** | Secondary angular velocity, in A frame | rad/s |
 | 12:21 | **C_c** | Rotation matrix N→A, row-major (`results.A_to_N = C_c.T`) | — |
 | 21:30 | **C**   | Rotation matrix A→B, row-major (`results.B_to_A = C.T`) | — |
 
@@ -350,11 +350,12 @@ The C++ layer works in **km, kg, s**. The Python API converts all inputs from SI
 
 ## References
 
-- Hou, X., Scheeres, D.J., & Xin, X. (2016). Mutual potential between two rigid bodies with arbitrary shapes and mass distributions. *Celestial Mechanics and Dynamical Astronomy*, 124(1), 67–82.
-- Davis, A.B. & Scheeres, D.J. (2020). Doubly synchronous binary asteroid mass parameter observability. *Icarus*, 341. https://doi.org/10.1016/j.icarus.2019.113439
+- Hou, X., Scheeres, D.J., & Xin, X. (2016). Mutual potential between two rigid bodies with arbitrary shapes and mass distributions. *Celestial Mechanics and Dynamical Astronomy*, 124(1), 67–82. https://doi.org/10.1007/s10569-015-9646-0
+- Davis, A.B. & Scheeres, D.J. (2020). Doubly synchronous binary asteroid mass parameter observability. *Icarus*, 341, 113439. https://doi.org/10.1016/j.icarus.2019.113439
 
-If you use the flyby or tidal perturbation functionality:
-- Meyer, A.J. & Scheeres, D.J. (2021). The effect of planetary flybys on singly synchronous binary asteroids. *Icarus*, 367. https://doi.org/10.1016/j.icarus.2021.114554
+And if you use the tidal torque, flyby, or solar tide perturbations:
+- Meyer, A.J. & Scheeres, D.J. (2021). The effect of planetary flybys on singly synchronous binary asteroids. *Icarus*, 367, 114554. https://doi.org/10.1016/j.icarus.2021.114554 *(flyby perturbation)*
+- Meyer, A.J., Scheeres, D.J., Agrusa, H.F., Noiset, G., McMahon, J., Karatekin, O., Hirabayashi, M., & Nakano, R. (2023). Energy dissipation in synchronous binary asteroids. *Icarus*, 391, 115323. https://doi.org/10.1016/j.icarus.2022.115323 *(tidal torque perturbation)*
 
 ---
 

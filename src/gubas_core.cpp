@@ -728,7 +728,7 @@ mat hou_ode(mat x, mat t, parameters inputs){
     //   [0:2]  r   — relative position vector (A frame, km)
     //   [3:5]  v   — relative velocity vector (A frame, km/s)
     //   [6:8]  wc  — primary angular velocity (A frame, rad/s)
-    //   [9:11] ws  — secondary angular velocity (inertial frame, rad/s)
+    //   [9:11] ws  — secondary angular velocity (A frame, rad/s)
     //   [12:20] Cc — inertial-to-A DCM, stored row-major as 9 scalars
     //   [21:29] C  — secondary-to-A DCM, stored row-major as 9 scalars
     // The DCMs are extracted row-major and then transposed so columns = body axes.
