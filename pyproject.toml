@@ -1,0 +1,33 @@
+[build-system]
+requires = ["scikit-build-core>=0.4", "pybind11>=2.11"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "f2bptoolkit"
+version = "0.1.0"
+description = "Full Two-Body Problem toolkit for binary asteroid dynamics"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.22",
+    "matplotlib>=3.5",
+    "spiceypy>=5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    "black",
+    "ruff",
+]
+
+[tool.scikit-build]
+cmake.build-type = "Release"
+wheel.packages = ["f2bptoolkit"]
+build.targets = ["_core"]
+
+[tool.scikit-build.cmake.define]
+# Pass the Python package directory to CMake so it can install the .so there
+SKBUILD_PLATLIB_COMPONENT = "PlatLib"
