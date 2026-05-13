@@ -4,7 +4,7 @@ A Python/C++ toolkit for simulating the **Full Two-Body Problem (F2BP)** — the
 
 The physics follow the [Hou et al. (2016)](#references) formulation of the F2BP and are adapted from [GUBAS](https://github.com/meyeralexj/gubas) (General Use Binary Asteroid Simulator). The C++ core is exposed to Python via pybind11.
 
-> **Note:** This package is experimental. Significant portions of the code remain untested. Use at your own risk.
+> **Note:** This package is experimental. Significant portions of the code remain untested (effectively all of it). Use at your own risk. Please let me know if you find mistakes.
 
 If you use this package, please cite the references listed [below](#references).
 
@@ -339,12 +339,12 @@ The 30-element state vector stored internally is `[r(3), v(3), ω_c(3), ω_s(3),
 |---|---|---|---|
 | 0:3   | **r**   | Relative position (secondary w.r.t. primary), in A frame | km (internal) / m (API) |
 | 3:6   | **v**   | Relative velocity, in A frame | km/s / m/s |
-| 6:9   | **ω_c** | Primary angular velocity, in A frame | rad/s |jj
+| 6:9   | **ω_c** | Primary angular velocity, in A frame | rad/s |
 | 9:12  | **ω_s** | Secondary angular velocity, in B frame | rad/s |
-| 12:21 | **C_c** | Rotation matrix N→A, row-major | — |
-| 21:30 | **C**   | Rotation matrix A→B, row-major | — |
+| 12:21 | **C_c** | Rotation matrix N→A, row-major (`results.A_to_N = C_c.T`) | — |
+| 21:30 | **C**   | Rotation matrix A→B, row-major (`results.B_to_A = C.T`) | — |
 
-The C++ layer works in **km, kg, s**. The Python API converts all inputs from SI and all outputs back to SI before returning them.
+The C++ layer works in **km, kg, s**. The Python API converts all inputs from SI and all outputs back to SI before returning them. The internal matrices `C_c` (N→A) and `C` (A→B) are exposed as their transposes — `A_to_N` and `B_to_A` — so that the transform direction matches the attribute name: `v_N = A_to_N @ v_A`, `v_A = B_to_A @ v_B`.
 
 ---
 
@@ -353,8 +353,8 @@ The C++ layer works in **km, kg, s**. The Python API converts all inputs from SI
 - Hou, X., Scheeres, D.J., & Xin, X. (2016). Mutual potential between two rigid bodies with arbitrary shapes and mass distributions. *Celestial Mechanics and Dynamical Astronomy*, 124(1), 67–82.
 - Davis, A.B. & Scheeres, D.J. (2020). Doubly synchronous binary asteroid mass parameter observability. *Icarus*, 341. https://doi.org/10.1016/j.icarus.2019.113439
 
-If you use the flyby or solar tide functionality:
-- Alex J. Meyer and Daniel J. Sceeres, The effect of planetary flybys on singly synchronous binary asteroids, Icarus, Vol. 367 (2021), https://doi.org/10.1016/j.icarus.2021.114554
+If you use the flyby or tidal perturbation functionality:
+- Meyer, A.J. & Scheeres, D.J. (2021). The effect of planetary flybys on singly synchronous binary asteroids. *Icarus*, 367. https://doi.org/10.1016/j.icarus.2021.114554
 
 ---
 
