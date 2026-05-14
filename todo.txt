@@ -7,7 +7,10 @@ Add more examples:
 -higher order gravity terms
 -planetary flyby
 
+More features:
 
-Add surface gravity / surface slope calculation for shape models
-Add test particles? Collision detection?
-Lightcurve emulator?
+-Add surface gravity / surface slope calculation for shape models
+-Add test particles? Collision detection?
+-Lightcurve emulator?
+-User-specified inertia integrals rather than spcifying the shape and computing internally?
+

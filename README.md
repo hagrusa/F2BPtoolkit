@@ -182,7 +182,7 @@ sim.set_state(
 
 ---
 
-### Perturbations
+### Perturbations (untested!)
 
 ```python
 # Planetary flyby (hyperbolic trajectory)
@@ -285,7 +285,7 @@ fig.savefig("orbit.png", dpi=150)
 
 ---
 
-### SPICE utilities
+### SPICE utilities (untested!)
 
 ```python
 import f2bptoolkit.spice_utils as su

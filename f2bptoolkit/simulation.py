@@ -309,13 +309,20 @@ class Simulation:
 
         primary, secondary = self._bodies
 
-        # Inertia orders — for polyhedra enforce order >= gravity_order
+        # Inertia orders:
+        #   - polyhedra:  enforce order >= gravity_order (need enough mesh moments)
+        #   - ellipsoids: enforce order <= gravity_order (tensor is sized gravity_order+1;
+        #                 writing T[2,...] into a 1×1×1 cube would be out of bounds)
         order_a = primary.inertia_order
         order_b = secondary.inertia_order
         if isinstance(primary.shape,   PolyhedronShape):
             order_a = max(order_a, self._gravity_order)
+        else:
+            order_a = min(order_a, self._gravity_order)
         if isinstance(secondary.shape, PolyhedronShape):
             order_b = max(order_b, self._gravity_order)
+        else:
+            order_b = min(order_b, self._gravity_order)
         cfg.order_a = order_a
         cfg.order_b = order_b
 

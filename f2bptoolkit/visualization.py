@@ -163,19 +163,12 @@ class PlotInterface:
 
     # ── energy & angular momentum ─────────────────────────────────────────────
 
-    def energy_conservation(self, potential: Optional[np.ndarray] = None,
-                             figsize: Tuple = (8, 3)) -> Tuple:
+    def energy_conservation(self, figsize: Tuple = (8, 3)) -> Tuple:
         """
-        Plot normalised energy conservation error dE/E0 vs time.
-
-        Parameters
-        ----------
-        potential : ndarray, shape (N,), optional
-            Gravitational potential energy in Joules.  If not provided, only
-            kinetic energy is shown (still useful for checking the integrator).
+        Plot normalised total energy conservation error dE/E0 vs time.
         """
         from .analysis import AnalysisInterface
-        t, dE = AnalysisInterface(self._r).energy_conservation(potential)
+        t, dE = AnalysisInterface(self._r).energy_conservation()
         t = _days(t)
 
         fig, ax = plt.subplots(figsize=figsize)
@@ -274,14 +267,22 @@ class PlotInterface:
         Kt  = r.kinetic_energy_orbital
         Kr1 = r.kinetic_energy_rotation_primary
         Kr2 = r.kinetic_energy_rotation_secondary
-        if Kt is not None:
-            KE = Kt + (Kr1 if Kr1 is not None else 0) + (Kr2 if Kr2 is not None else 0)
-            dE = (KE - KE[0]) / abs(KE[0])
+        PE  = r.potential_energy
+        if Kt is not None and PE is not None:
+            E = Kt + (Kr1 if Kr1 is not None else 0) + (Kr2 if Kr2 is not None else 0) + PE
+            dE = (E - E[0]) / abs(E[0])
+            ax3.set_title("Total Energy Conservation")
+        elif Kt is not None:
+            E  = Kt + (Kr1 if Kr1 is not None else 0) + (Kr2 if Kr2 is not None else 0)
+            dE = (E - E[0]) / abs(E[0])
+            ax3.set_title("Kinetic Energy Conservation")
+        else:
+            dE = None
+        if dE is not None:
             ax3.plot(t, dE, lw=0.9, color="seagreen")
             ax3.axhline(0, color="gray", lw=0.5, ls="--")
             ax3.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
         ax3.set_xlabel("Time [days]"); ax3.set_ylabel("dE / E₀")
-        ax3.set_title("Kinetic Energy Conservation")
 
         fig.suptitle("F2BP Simulation Summary", fontsize=13, fontweight="bold")
         return fig, (ax0, ax1, ax2, ax3)
