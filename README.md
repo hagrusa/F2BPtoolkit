@@ -72,7 +72,7 @@ sim.gravity_order = 2   # include J2/C22 terms
 # Primary body
 primary = f2bp.Body("Didymos")
 primary.shape   = f2bp.EllipsoidShape(a=400, b=395, c=340)   # meters
-primary.density = 2170.0                                       # kg/m³
+primary.density = 2170.0                                     # kg/m^3
 sim.add(primary)
 
 # Secondary body
@@ -83,20 +83,20 @@ sim.add(secondary)
 
 # Initial state (SI units throughout)
 sim.set_state(
-    position        = [1195.0, 0.0, 0.0],   # m, in primary body frame
-    velocity        = [0.0, 0.1735, 0.0],    # m/s
-    omega_primary   = [0.0, 0.0, 7.26e-4],  # rad/s
-    omega_secondary = [0.0, 0.0, 7.26e-4],   # rad/s, in primary body frame (A)
+    position        = [1195.0, 0.0, 0.0],   # m, in primary body frame (A)
+    velocity        = [0.0, 0.1735, 0.0],    # m/s, in primary frame
+    omega_primary   = [0.0, 0.0, 7.26e-4],  # rad/s, in primary frame
+    omega_secondary = [0.0, 0.0, 7.26e-4],   # rad/s, in primary body frame 
 )
 
-# Run for 50 days with RK4, recording every 30 steps
+# Run for 10 days with LGVI, recording every 10 steps
 results = sim.integrate(
-    t_final    = 86400 * 50,
-    integrator = f2bp.RK4(dt=10.0),
-    nOut       = 30,
+    t_final    = 10*24*3600,
+    integrator = f2bp.LGVI(dt=60.0),
+    nOut       = 10,
 )
 
-# Built-in plots
+# Built-in plots (ugly)
 sim.plot.summary()
 sim.plot.orbit()
 sim.plot.spin_rates()
@@ -133,7 +133,7 @@ sim.animate    # AnimationInterface (after integrate())
 body = f2bp.Body("name")
 body.shape         = f2bp.EllipsoidShape(a, b, c)   # meters
 body.density       = 2170.0                          # kg/m³
-body.inertia_order = 2                               # expansion order (even)
+body.inertia_order = 2                               # expansion order
 ```
 
 **Shape models:**
@@ -243,7 +243,7 @@ results.solar_position     # (N, 3) m
 
 ---
 
-### Analysis interface
+### Analysis interface (work in progress)
 
 ```python
 a = sim.analysis
@@ -259,7 +259,7 @@ wp, ws = a.spin_rates()                    # (N,), (N,) rad/s
 
 ---
 
-### Visualization interface
+### Visualization interface (work in progress)
 
 ```python
 p = sim.plot

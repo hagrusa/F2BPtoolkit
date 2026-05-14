@@ -1,9 +1,10 @@
 """Main Simulation class for F2BPtoolkit."""
 
+import warnings
 import numpy as np
 from typing import List, Optional, Union
 
-from .body import Body, PolyhedronShape
+from .body import Body, PolyhedronShape, _align_polyhedron
 from .state import InitialState
 from .integrators import Integrator, RK4, LGVI, RK87, ABM
 from .perturbations import (
@@ -444,6 +445,42 @@ class Simulation:
                 cfg.refrad2  = p.ref_radius_secondary / 1000.0
                 cfg.eps1     = p.lag_angle_primary
                 cfg.eps2     = p.lag_angle_secondary
+
+        # ── polyhedron alignment check ────────────────────────────────────────
+        # Polyhedral shape models must be centred on the COM and aligned with
+        # their principal axes of inertia.  Check each body; if misaligned,
+        # emit a warning and use a corrected shape for this integration only
+        # (the Body object is not modified).
+        _aligned_shapes = []   # keep temp PolyhedronShapes alive until run_simulation returns
+        if isinstance(primary.shape, PolyhedronShape):
+            aligned, msg = _align_polyhedron(primary.shape)
+            if msg:
+                warnings.warn(
+                    f"Body '{primary.name}': polyhedral shape model is not centred "
+                    f"on its centre of mass and/or not aligned with its principal "
+                    f"axes of inertia — {msg}.  The mesh has been automatically "
+                    f"corrected for this integration.  For precise initial "
+                    f"orientations, pre-align your shape model.",
+                    UserWarning, stacklevel=2,
+                )
+                cfg.vert_fileA = aligned.vertex_file
+                cfg.tet_fileA  = aligned.facet_file
+                _aligned_shapes.append(aligned)
+
+        if isinstance(secondary.shape, PolyhedronShape):
+            aligned, msg = _align_polyhedron(secondary.shape)
+            if msg:
+                warnings.warn(
+                    f"Body '{secondary.name}': polyhedral shape model is not centred "
+                    f"on its centre of mass and/or not aligned with its principal "
+                    f"axes of inertia — {msg}.  The mesh has been automatically "
+                    f"corrected for this integration.  For precise initial "
+                    f"orientations, pre-align your shape model.",
+                    UserWarning, stacklevel=2,
+                )
+                cfg.vert_fileB = aligned.vertex_file
+                cfg.tet_fileB  = aligned.facet_file
+                _aligned_shapes.append(aligned)
 
         # ── run ───────────────────────────────────────────────────────────────
         result = _core.run_simulation(cfg)

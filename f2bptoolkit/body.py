@@ -104,15 +104,19 @@ class PolyhedronShape(ShapeModel):
         _validate_csv_files(self.vertex_file, self.facet_file)
 
     @classmethod
-    def from_obj(cls, path: str) -> 'PolyhedronShape':
+    def from_obj(cls, path: str, scale: float = 1.0) -> 'PolyhedronShape':
         """
         Construct a PolyhedronShape by parsing a Wavefront OBJ file.
 
         Parameters
         ----------
         path : str
-            Path to the ``.obj`` file.  Vertex coordinates must be in
-            **meters**.  Only triangular faces are supported.
+            Path to the ``.obj`` file.  Only triangular faces are supported.
+        scale : float, optional
+            Multiply all vertex coordinates by this factor before passing to
+            the integrator.  The integrator expects coordinates in **meters**,
+            so set ``scale=1000.0`` if the OBJ file uses kilometres.
+            Default: 1.0 (coordinates already in metres).
 
         Returns
         -------
@@ -127,6 +131,8 @@ class PolyhedronShape(ShapeModel):
             out-of-range face indices, or has fewer than 4 vertices/faces.
         """
         vertices, faces = _parse_obj(path)
+        if scale != 1.0:
+            vertices = vertices * scale
         _validate_mesh_arrays(vertices, faces, source=path)
         vpath, fpath = _write_gubas_csv(vertices, faces)
 
@@ -367,6 +373,139 @@ def _write_gubas_csv(vertices: np.ndarray, faces: np.ndarray):
         raise
 
     return vpath, fpath
+
+
+def _poly_com_and_inertia(vertices: np.ndarray, faces: np.ndarray):
+    """
+    Compute the centre of mass and inertia tensor for a uniform-density
+    polyhedron using signed-tetrahedron decomposition.
+
+    Density is implicitly 1; all results scale linearly with rho.
+
+    Returns
+    -------
+    com : ndarray, shape (3,)
+        Centre of mass in the same units as *vertices*.
+    I_com : ndarray, shape (3, 3)
+        Symmetric inertia tensor about the COM (rho = 1).
+    """
+    a = vertices[faces[:, 0]]   # (F, 3)
+    b = vertices[faces[:, 1]]
+    c = vertices[faces[:, 2]]
+
+    # Signed volume of each tet: a · (b × c)
+    det = np.einsum('ij,ij->i', a, np.cross(b, c))   # (F,)
+    total_vol = det.sum() / 6.0
+
+    # COM: weighted centroid (4th vertex at origin → centroid = (a+b+c)/4)
+    com = np.einsum('i,ij->j', det, a + b + c) / (24.0 * total_vol)
+
+    # Second moments about origin via tetrahedral formula:
+    #   ∫ x² dV = Σ det/60 * (ax² + bx² + cx² + ax·bx + ax·cx + bx·cx)
+    #   ∫ xy dV = Σ det/120 * (2ax·ay + 2bx·by + 2cx·cy +
+    #                           ax·by + ay·bx + ax·cy + ay·cx + bx·cy + by·cx)
+    ax, ay, az = a[:, 0], a[:, 1], a[:, 2]
+    bx, by, bz = b[:, 0], b[:, 1], b[:, 2]
+    cx, cy, cz = c[:, 0], c[:, 1], c[:, 2]
+
+    def _sq(u, v, w):
+        return float(np.dot(det, u**2 + v**2 + w**2 + u*v + u*w + v*w)) / 60.0
+
+    def _cross(u1, u2, v1, v2, w1, w2):
+        return float(np.dot(det, 2*u1*u2 + 2*v1*v2 + 2*w1*w2 +
+                            u1*v2 + u2*v1 + u1*w2 + u2*w1 +
+                            v1*w2 + v2*w1)) / 120.0
+
+    int_x2 = _sq(ax, bx, cx)
+    int_y2 = _sq(ay, by, cy)
+    int_z2 = _sq(az, bz, cz)
+    int_xy = _cross(ax, ay, bx, by, cx, cy)
+    int_xz = _cross(ax, az, bx, bz, cx, cz)
+    int_yz = _cross(ay, az, by, bz, cy, cz)
+
+    # Inertia tensor about origin
+    I_orig = np.array([
+        [ int_y2 + int_z2, -int_xy,           -int_xz          ],
+        [-int_xy,           int_x2 + int_z2,  -int_yz          ],
+        [-int_xz,          -int_yz,            int_x2 + int_y2 ],
+    ])
+
+    # Parallel-axis theorem: I_com = I_orig - M*(|com|²·I₃ - com⊗com)
+    M = total_vol   # rho = 1
+    I_com = I_orig - M * (np.dot(com, com) * np.eye(3) - np.outer(com, com))
+
+    return com, I_com
+
+
+def _align_polyhedron(shape: 'PolyhedronShape'):
+    """
+    Check whether a polyhedral shape is centred on its COM and aligned with
+    its principal axes of inertia.  If not, return a corrected shape.
+
+    The corrected shape has vertices translated to the COM and rotated so that
+    the principal axes align with the body-frame axes in ascending moment order
+    (x = minimum moment / long axis, z = maximum moment / spin axis), consistent
+    with the GUBAS ellipsoid convention.
+
+    Returns
+    -------
+    shape : PolyhedronShape
+        Original shape if already aligned, otherwise a new temporary
+        PolyhedronShape whose CSV files contain the corrected vertices.
+    msg : str or None
+        Human-readable description of corrections applied, or None if none
+        were needed.
+    """
+    vert_data = np.loadtxt(shape.vertex_file, delimiter=',')
+    face_data = np.loadtxt(shape.facet_file,  delimiter=',').astype(int)
+    vertices  = vert_data[:, 1:]        # drop 1-based id column (metres)
+    faces     = face_data[:, :3] - 1    # 1-based → 0-based
+
+    com, I_com = _poly_com_and_inertia(vertices, faces)
+
+    R_char         = np.linalg.norm(vertices, axis=1).mean()
+    com_offset     = float(np.linalg.norm(com))
+    diag_mean      = float(np.abs(np.diag(I_com)).mean())
+    max_offdiag_rel = float(np.abs([I_com[0, 1], I_com[0, 2], I_com[1, 2]]).max()) \
+                      / (diag_mean + 1e-30)
+
+    com_bad  = com_offset > 1e-3 * R_char
+    axes_bad = max_offdiag_rel > 1e-4
+
+    if not com_bad and not axes_bad:
+        return shape, None
+
+    msgs = []
+    v = vertices - com
+    if com_bad:
+        msgs.append(f"translated to COM (offset was {com_offset:.4g} m)")
+
+    # Eigendecomposition — ascending eigenvalue order: I_xx ≤ I_yy ≤ I_zz
+    eigenvalues, eigenvectors = np.linalg.eigh(I_com)
+    order       = np.argsort(eigenvalues)
+    eigenvectors = eigenvectors[:, order]
+    if np.linalg.det(eigenvectors) < 0:
+        eigenvectors[:, 2] *= -1   # enforce right-handed frame
+
+    # Express vertices in the principal-axis frame: v_new = Qᵀ v
+    v_aligned = (eigenvectors.T @ v.T).T
+
+    if axes_bad:
+        max_angle = float(np.degrees(
+            np.arccos(np.clip(np.abs(np.diag(eigenvectors)), 0.0, 1.0))
+        ).max())
+        msgs.append(
+            f"rotated to principal axes "
+            f"(max axis deviation {max_angle:.2f}°, "
+            f"off-diagonal/diagonal = {max_offdiag_rel:.2e})"
+        )
+
+    vpath, fpath = _write_gubas_csv(v_aligned, faces)
+    new_shape             = PolyhedronShape.__new__(PolyhedronShape)
+    new_shape.vertex_file = vpath
+    new_shape.facet_file  = fpath
+    new_shape._tmp_files  = [vpath, fpath]
+    return new_shape, "; ".join(msgs)
 
 
 class Body:
