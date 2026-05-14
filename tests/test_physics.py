@@ -619,9 +619,9 @@ class TestSynchronousRotation:
             "Spin-orbit coupling may be broken."
         )
 
-    def test_inertial_frame_yaw_drifts_secularly(self):
+    def test_inertial_frame_yaw_drifts(self):
         """
-        Inertial-frame yaw should accumulate secular drift (Dimorphos orbits
+        Inertial-frame yaw should accumulate drift (Dimorphos orbits
         the primary) — confirms the two frames are genuinely different.
         """
         sim = f2bp.Simulation()

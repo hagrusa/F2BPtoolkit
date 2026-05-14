@@ -28,6 +28,11 @@ cmake.build-type = "Release"
 wheel.packages = ["f2bptoolkit"]
 build.targets = ["_core"]
 
+[tool.pytest.ini_options]
+markers = [
+    "integration: tests that require the compiled C++ extension",
+]
+
 [tool.scikit-build.cmake.define]
 # Pass the Python package directory to CMake so it can install the .so there
 SKBUILD_PLATLIB_COMPONENT = "PlatLib"
