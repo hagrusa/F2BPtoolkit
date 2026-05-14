@@ -115,6 +115,7 @@ PYBIND11_MODULE(_core, m) {
         .def_readwrite("states",            &SimResult::states)
         .def_readwrite("hyp_states",        &SimResult::hyp_states)
         .def_readwrite("solar_states",      &SimResult::solar_states)
+        .def_readwrite("potential_energy",  &SimResult::potential_energy)
         .def_readwrite("mass_primary",      &SimResult::mass_primary)
         .def_readwrite("mass_secondary",    &SimResult::mass_secondary)
         .def_readwrite("inertia_primary",   &SimResult::inertia_primary)

@@ -458,6 +458,7 @@ class Simulation:
                                if cfg.flyby_toggle else None),
             solar_states_km = (np.array(result.solar_states)
                                if cfg.helio_toggle else None),
+            potential_km    = np.array(result.potential_energy),
         )
         return self._results
 

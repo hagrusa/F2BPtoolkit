@@ -15,18 +15,12 @@ class AnalysisInterface:
     def __init__(self, results: SimulationResults):
         self._r = results
 
-    def energy_conservation(self, potential: Optional[np.ndarray] = None
-                            ) -> Tuple[np.ndarray, np.ndarray]:
+    def energy_conservation(self) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Compute normalised energy conservation error (dE/E0).
+        Compute normalised total energy conservation error (dE/E0).
 
-        If the potential energy is not provided (requires an extra C++ call),
-        only kinetic energy conservation is tracked.
-
-        Parameters
-        ----------
-        potential : ndarray, shape (N,), optional
-            Mutual gravitational potential energy in Joules at each timestep.
+        Total energy = orbital kinetic + rotational kinetic (both bodies)
+        + mutual gravitational potential.
 
         Returns
         -------
@@ -38,14 +32,13 @@ class AnalysisInterface:
         Kt = r.kinetic_energy_orbital
         Kr1 = r.kinetic_energy_rotation_primary
         Kr2 = r.kinetic_energy_rotation_secondary
+        U = r.potential_energy
         if Kt is None:
             raise ValueError("Masses not available; run integrate() first.")
+        if U is None:
+            raise ValueError("Potential energy not available; run integrate() first.")
 
-        if potential is not None:
-            E = Kt + Kr1 + Kr2 + potential
-        else:
-            E = Kt + (Kr1 if Kr1 is not None else 0) + (Kr2 if Kr2 is not None else 0)
-
+        E = Kt + Kr1 + Kr2 + U
         E0 = E[0]
         return r.times, (E - E0) / abs(E0)
 

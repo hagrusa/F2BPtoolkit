@@ -46,7 +46,8 @@ class SimulationResults:
     def __init__(self, times, states_km, G,
                  mass_primary=None, mass_secondary=None,
                  inertia_primary=None, inertia_secondary=None,
-                 hyp_states_km=None, solar_states_km=None):
+                 hyp_states_km=None, solar_states_km=None,
+                 potential_km=None):
         """
         Build from C++ output (km units).
 
@@ -65,6 +66,8 @@ class SimulationResults:
             Flyby perturber states in km/km/s.
         solar_states_km : array-like, shape (N, 6) or (N*6,), optional
             Heliocentric body states in km/km/s.
+        potential_km : array-like, shape (N,), optional
+            Mutual gravitational potential in kg·km²·s⁻² (C++ internal units).
         """
         self._times = np.asarray(times, dtype=float)
         N = len(self._times)
@@ -106,6 +109,12 @@ class SimulationResults:
         self._IA = np.asarray(inertia_primary)   * 1e6 if inertia_primary   is not None else None
         self._IB = np.asarray(inertia_secondary) * 1e6 if inertia_secondary is not None else None
 
+        # Mutual gravitational potential (kg·km²·s⁻² → J via ×1e6)
+        if potential_km is not None and len(potential_km) > 0:
+            self._potential = np.asarray(potential_km, dtype=float) * 1e6
+        else:
+            self._potential = None
+
         # Lazily computed derived quantities
         self._energy = None
         self._angular_momentum = None
@@ -146,6 +155,11 @@ class SimulationResults:
     def separation(self) -> np.ndarray:
         """Scalar separation |r| in meters, shape (N,)."""
         return np.linalg.norm(self._position, axis=1)
+
+    @property
+    def potential_energy(self) -> Optional[np.ndarray]:
+        """Mutual gravitational potential energy in J, shape (N,)."""
+        return self._potential
 
     @property
     def n_steps(self) -> int:
@@ -387,6 +401,8 @@ class SimulationResults:
         if self._solar_position is not None:
             arrays['solar_position'] = self._solar_position
             arrays['solar_velocity'] = self._solar_velocity
+        if self._potential is not None:
+            arrays['potential_energy'] = self._potential
 
         np.savez_compressed(path, **arrays)
 
@@ -451,6 +467,7 @@ class SimulationResults:
             flyby_velocity  = _opt('flyby_velocity'),
             solar_position  = _opt('solar_position'),
             solar_velocity  = _opt('solar_velocity'),
+            potential_energy = _opt('potential_energy'),
         )
 
     @classmethod
@@ -459,7 +476,8 @@ class SimulationResults:
                      mass_primary=None, mass_secondary=None,
                      inertia_primary=None, inertia_secondary=None,
                      flyby_position=None, flyby_velocity=None,
-                     solar_position=None, solar_velocity=None) -> 'SimulationResults':
+                     solar_position=None, solar_velocity=None,
+                     potential_energy=None) -> 'SimulationResults':
         """
         Construct directly from SI arrays (bypasses the km-unit ``__init__``).
 
@@ -483,6 +501,8 @@ class SimulationResults:
         obj._flyby_velocity = np.asarray(flyby_velocity, dtype=float) if flyby_velocity is not None else None
         obj._solar_position = np.asarray(solar_position, dtype=float) if solar_position is not None else None
         obj._solar_velocity = np.asarray(solar_velocity, dtype=float) if solar_velocity is not None else None
+        # potential_energy from _from_arrays is already in SI (J) — no conversion needed
+        obj._potential        = np.asarray(potential_energy, dtype=float) if potential_energy is not None else None
         obj._energy           = None
         obj._angular_momentum = None
         return obj

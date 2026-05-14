@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 
 import f2bptoolkit as f2bp
-from f2bptoolkit.integrators import RK4, LGVI, ABM
+from f2bptoolkit.integrators import RK4, LGVI, ABM, RK87
 
 
 # ── shared parameters (Didymos–Dimorphos, approximate) ────────────────────────
@@ -351,6 +351,69 @@ class TestEnergyConservation:
         E = _total_energy(r, MA, MB)
         drift = np.max(np.abs(E - E[0])) / abs(E[0])
         assert drift < 1e-6, f"LGVI total energy max deviation = {drift:.2e}"
+
+    # ── analysis.energy_conservation() tests (uses C++ mutual potential) ──────
+
+    def _ellipsoid_sim_for_energy(self, integrator, n_periods=5, nOut=10):
+        """Didymos–Dimorphos ellipsoid sim; returns the Simulation after integrate()."""
+        sim = f2bp.Simulation()
+        sim.gravity_order = 2
+        p = f2bp.Body("P"); p.shape = f2bp.EllipsoidShape(_aA,_bA,_cA); p.density = _rhoA
+        s = f2bp.Body("S"); s.shape = f2bp.EllipsoidShape(_aB,_bB,_cB); s.density = _rhoB
+        sim.add(p); sim.add(s)
+        sim.set_state([_r0,0,0],[0,_v_c,0],[0,0,_n],[0,0,_n])
+        sim.integrate(n_periods * _T, integrator=integrator, nOut=nOut)
+        return sim
+
+    def test_analysis_energy_conservation_rk4(self):
+        """RK4: analysis.energy_conservation() max |dE/E0| < 1e-6 over 5 orbits."""
+        sim = self._ellipsoid_sim_for_energy(RK4(dt=10.0))
+        _, dE = sim.analysis.energy_conservation()
+        assert np.max(np.abs(dE)) < 1e-9, f"RK4 |dE/E0| = {np.max(np.abs(dE)):.2e}"
+
+    def test_analysis_energy_conservation_abm(self):
+        """ABM: analysis.energy_conservation() max |dE/E0| < 1e-6 over 5 orbits."""
+        sim = self._ellipsoid_sim_for_energy(ABM(dt=10.0))
+        _, dE = sim.analysis.energy_conservation()
+        assert np.max(np.abs(dE)) < 1e-9, f"ABM |dE/E0| = {np.max(np.abs(dE)):.2e}"
+
+    def test_analysis_energy_conservation_rk87(self):
+        """RK87: analysis.energy_conservation() max |dE/E0| < 1e-8 over 5 orbits."""
+        # RK87 is adaptive — nOut is not supported, so don't pass it.
+        sim = f2bp.Simulation()
+        sim.gravity_order = 2
+        p = f2bp.Body("P"); p.shape = f2bp.EllipsoidShape(_aA,_bA,_cA); p.density = _rhoA
+        s = f2bp.Body("S"); s.shape = f2bp.EllipsoidShape(_aB,_bB,_cB); s.density = _rhoB
+        sim.add(p); sim.add(s)
+        sim.set_state([_r0,0,0],[0,_v_c,0],[0,0,_n],[0,0,_n])
+        sim.integrate(5 * _T, integrator=RK87(tol=1e-10))
+        _, dE = sim.analysis.energy_conservation()
+        assert np.max(np.abs(dE)) < 1e-9, f"RK87 |dE/E0| = {np.max(np.abs(dE)):.2e}"
+
+    def test_analysis_energy_conservation_lgvi(self):
+        """
+        LGVI: analysis.energy_conservation() max |dE/E0| < 1e-4 over 5 orbits.
+
+        LGVI conserves a modified Hamiltonian, so the true total energy
+        oscillates with bounded amplitude but no secular drift.  The threshold is
+        intentionally loose; the key property is that it does not grow.
+        """
+        sim = self._ellipsoid_sim_for_energy(LGVI(dt=10.0))
+        _, dE = sim.analysis.energy_conservation()
+        assert np.max(np.abs(dE)) < 1e-7, f"LGVI |dE/E0| = {np.max(np.abs(dE)):.2e}"
+
+    def test_potential_energy_shape(self):
+        """potential_energy array has the same length as times."""
+        sim = self._ellipsoid_sim_for_energy(RK4(dt=10.0))
+        r = sim.results
+        assert r.potential_energy is not None
+        assert r.potential_energy.shape == r.times.shape
+
+    def test_potential_energy_negative(self):
+        """Mutual gravitational potential should be negative (bound system)."""
+        sim = self._ellipsoid_sim_for_energy(RK4(dt=10.0))
+        assert np.all(sim.results.potential_energy < 0), \
+            "Mutual potential should be negative everywhere"
 
 
 # ══════════════════════════════════════════════════════════════════════════════

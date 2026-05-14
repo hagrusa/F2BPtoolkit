@@ -1015,14 +1015,28 @@ void hamiltonian_map(double h, parameters inputs, mat* x, mat* x_out,
 static void push_state(double t_val, const mat& y,
                        const vec& X_s, const vec& X_helio,
                        int flyby_tog, int helio_tog,
+                       parameters& inp,
                        std::vector<double>& times_out,
                        std::vector<double>& states_out,
                        std::vector<double>& hyp_out,
-                       std::vector<double>& solar_out){
+                       std::vector<double>& solar_out,
+                       std::vector<double>& potential_out){
     times_out.push_back(t_val);
     for(int c=0;c<30;c++) states_out.push_back(y(0,c));
     if(flyby_tog)  for(int i=0;i<6;i++) hyp_out.push_back(X_s(i));
     if(helio_tog)  for(int i=0;i<6;i++) solar_out.push_back(X_helio(i));
+
+    // Compute and store mutual gravitational potential at this output step.
+    // Mirror hou_ode's extraction exactly: reshape to column vector, then
+    // form e as the *transposed* (row) unit vector — potential() expects 1×3.
+    mat r_vec = y.cols(0, 2); r_vec.reshape(3, 1);  // (3,1) position in A frame
+    double R  = norm(r_vec, 2);
+    mat e     = r_vec.t() / R;                       // (1,3) unit direction — matches hou_ode
+    mat C     = y.cols(21, 29); C.reshape(3, 3); C = C.t();  // B→A rotation matrix
+    inertia_rot(C, *(inp.n), inp.TB, inp.TBp);
+    double U  = potential(*(inp.G), *(inp.n), inp.tk, inp.a, inp.b,
+                          e, R, inp.TA, inp.TBp);
+    potential_out.push_back(U);
 }
 
 // RK4 fixed-step
@@ -1031,7 +1045,8 @@ static void rk4_lib(double t0, double tf, mat x0, double h, double out_freq,
                     std::vector<double>& times_out,
                     std::vector<double>& states_out,
                     std::vector<double>& hyp_out,
-                    std::vector<double>& solar_out){
+                    std::vector<double>& solar_out,
+                    std::vector<double>& potential_out){
     double f0_hyp=kepler(inp.n_hyp,t0,inp.e_hyp,inp.tau_hyp);
     vec X_s=kepler2cart(inp.a_hyp,inp.e_hyp,inp.i_hyp,inp.RAAN_hyp,inp.om_hyp,f0_hyp,inp.G,inp.Mplanet);
     double f0_helio=kepler(inp.n_helio,t0,inp.e_helio,inp.tau_helio);
@@ -1043,7 +1058,7 @@ static void rk4_lib(double t0, double tf, mat x0, double h, double out_freq,
     double t=t0;
 
     push_state(t,y,X_s,X_helio,*inp.flyby_toggle,*inp.helio_toggle,
-               times_out,states_out,hyp_out,solar_out);
+               inp,times_out,states_out,hyp_out,solar_out,potential_out);
     if(decimate) t_next+=out_freq;
 
     while(t<tf){
@@ -1072,7 +1087,7 @@ static void rk4_lib(double t0, double tf, mat x0, double h, double out_freq,
         }
         if(!decimate||t>=t_next-1e-9){
             push_state(t,y,X_s,X_helio,*inp.flyby_toggle,*inp.helio_toggle,
-                       times_out,states_out,hyp_out,solar_out);
+                       inp,times_out,states_out,hyp_out,solar_out,potential_out);
             if(decimate) t_next+=out_freq;
         }
     }
@@ -1084,7 +1099,8 @@ static void rk87_lib(double t0, double tf, mat x0, double rel_tol, double out_fr
                      std::vector<double>& times_out,
                      std::vector<double>& states_out,
                      std::vector<double>& hyp_out,
-                     std::vector<double>& solar_out){
+                     std::vector<double>& solar_out,
+                     std::vector<double>& potential_out){
     mat c_i,a_i_j,b_8,b_7;
     c_i<<1./18.<<endr<<1./12.<<endr<<1./8.<<endr<<5./16.<<endr
        <<3./8.<<endr<<59./400.<<endr<<93./200.<<endr<<5490023248./9719169821.<<endr
@@ -1134,7 +1150,7 @@ static void rk87_lib(double t0, double tf, mat x0, double rel_tol, double out_fr
     mat f; f.zeros(x.n_cols,13);
 
     push_state(t,x,X_s,X_helio,*inp.flyby_toggle,*inp.helio_toggle,
-               times_out,states_out,hyp_out,solar_out);
+               inp,times_out,states_out,hyp_out,solar_out,potential_out);
     if(decimate) t_next+=out_freq;
 
     while(t<tf){
@@ -1165,7 +1181,7 @@ static void rk87_lib(double t0, double tf, mat x0, double rel_tol, double out_fr
             }
             if(!decimate||t>=t_next-1e-9){
                 push_state(t,x,X_s,X_helio,*inp.flyby_toggle,*inp.helio_toggle,
-                           times_out,states_out,hyp_out,solar_out);
+                           inp,times_out,states_out,hyp_out,solar_out,potential_out);
                 if(decimate) t_next+=out_freq;
             }
         }
@@ -1182,7 +1198,8 @@ static void ABM_lib(double t0, double tf, mat x0, double h, double out_freq,
                     std::vector<double>& times_out,
                     std::vector<double>& states_out,
                     std::vector<double>& hyp_out,
-                    std::vector<double>& solar_out){
+                    std::vector<double>& solar_out,
+                    std::vector<double>& potential_out){
     double f0_hyp=kepler(inp.n_hyp,t0,inp.e_hyp,inp.tau_hyp);
     vec X_s=kepler2cart(inp.a_hyp,inp.e_hyp,inp.i_hyp,inp.RAAN_hyp,inp.om_hyp,f0_hyp,inp.G,inp.Mplanet);
     double f0_helio=kepler(inp.n_helio,t0,inp.e_helio,inp.tau_helio);
@@ -1194,7 +1211,7 @@ static void ABM_lib(double t0, double tf, mat x0, double h, double out_freq,
     double t=t0;
 
     push_state(t,y,X_s,X_helio,*inp.flyby_toggle,*inp.helio_toggle,
-               times_out,states_out,hyp_out,solar_out);
+               inp,times_out,states_out,hyp_out,solar_out,potential_out);
     if(decimate) t_next+=out_freq;
 
     // derivative history: f1=prev, f2=2prev, f3=3prev (populated during startup)
@@ -1247,7 +1264,7 @@ static void ABM_lib(double t0, double tf, mat x0, double h, double out_freq,
         }
         if(!decimate||t>=t_next-1e-9){
             push_state(t,y,X_s,X_helio,*inp.flyby_toggle,*inp.helio_toggle,
-                       times_out,states_out,hyp_out,solar_out);
+                       inp,times_out,states_out,hyp_out,solar_out,potential_out);
             if(decimate) t_next+=out_freq;
         }
     }
@@ -1257,7 +1274,8 @@ static void ABM_lib(double t0, double tf, mat x0, double h, double out_freq,
 static void LGVI_lib(double t0, double tf, mat x0, double h, double out_freq,
                      parameters inp,
                      std::vector<double>& times_out,
-                     std::vector<double>& states_out){
+                     std::vector<double>& states_out,
+                     std::vector<double>& potential_out){
     bool decimate=(out_freq>0.0);
     double t_next=t0;
 
@@ -1276,11 +1294,23 @@ static void LGVI_lib(double t0, double tf, mat x0, double h, double out_freq,
     mat fab(3,1),fna(3,1),Fab(3,3),Fna(3,3),g_map(3,1),G_map(3,1),grad_G(3,3);
     fab.fill(0.4); fna.fill(0.4);
 
+    // Lambda to record state and potential at an output point
+    auto push_lgvi = [&](double t_val, const mat& yv) {
+        times_out.push_back(t_val);
+        for(int c=0;c<30;c++) states_out.push_back(yv(0,c));
+        mat r_vec = yv.cols(0,2); r_vec.reshape(3,1);
+        double R  = norm(r_vec, 2);
+        mat e     = r_vec.t() / R;                       // (1,3) — matches hou_ode
+        mat Cv    = yv.cols(21,29); Cv.reshape(3,3); Cv = Cv.t();
+        inertia_rot(Cv, *(inp.n), inp.TB, inp.TBp);
+        potential_out.push_back(
+            potential(*(inp.G), *(inp.n), inp.tk, inp.a, inp.b, e, R, inp.TA, inp.TBp));
+    };
+
     mat y=x0;
     double t=t0;
 
-    times_out.push_back(t);
-    for(int c=0;c<30;c++) states_out.push_back(y(0,c));
+    push_lgvi(t, y);
     if(decimate) t_next+=out_freq;
 
     while(t<tf){
@@ -1291,8 +1321,7 @@ static void LGVI_lib(double t0, double tf, mat x0, double h, double out_freq,
                         &g_map,&G_map,&grad_G,&du_dr_0,&M_0,&x0);
         y=y_new; t+=dt;
         if(!decimate||t>=t_next-1e-9){
-            times_out.push_back(t);
-            for(int c=0;c<30;c++) states_out.push_back(y(0,c));
+            push_lgvi(t, y);
             if(decimate) t_next+=out_freq;
         }
     }
@@ -1466,35 +1495,36 @@ SimResult run_simulation(const SimConfig& cfg){
     for(int i=0;i<30;i++) x0(0,i)=cfg.x0[i];
 
     // Run integrator
-    std::vector<double> times_out,states_out,hyp_out,solar_out;
+    std::vector<double> times_out,states_out,hyp_out,solar_out,potential_out;
     double out_freq=cfg.out_freq;
 
     switch(cfg.integ_flag){
         case 1:
             rk4_lib(cfg.t0,cfg.tf,x0,cfg.dt,out_freq,inp,
-                    times_out,states_out,hyp_out,solar_out);
+                    times_out,states_out,hyp_out,solar_out,potential_out);
             break;
         case 2:
             LGVI_lib(cfg.t0,cfg.tf,x0,cfg.dt,out_freq,inp,
-                     times_out,states_out);
+                     times_out,states_out,potential_out);
             break;
         case 3:
             rk87_lib(cfg.t0,cfg.tf,x0,cfg.tol,out_freq,inp,
-                     times_out,states_out,hyp_out,solar_out);
+                     times_out,states_out,hyp_out,solar_out,potential_out);
             break;
         case 4:
             ABM_lib(cfg.t0,cfg.tf,x0,cfg.dt,out_freq,inp,
-                    times_out,states_out,hyp_out,solar_out);
+                    times_out,states_out,hyp_out,solar_out,potential_out);
             break;
         default:
             result.status="error: unknown integ_flag";
             return result;
     }
 
-    result.times        =std::move(times_out);
-    result.states       =std::move(states_out);
-    result.hyp_states   =std::move(hyp_out);
-    result.solar_states =std::move(solar_out);
+    result.times            =std::move(times_out);
+    result.states           =std::move(states_out);
+    result.hyp_states       =std::move(hyp_out);
+    result.solar_states     =std::move(solar_out);
+    result.potential_energy =std::move(potential_out);
     result.mass_primary   =Mc;
     result.mass_secondary =Ms;
     result.inertia_primary  ={IA(0,0),IA(0,1),IA(0,2)};

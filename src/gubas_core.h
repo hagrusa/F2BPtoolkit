@@ -165,6 +165,7 @@ struct SimResult {
     double mass_secondary = 0.0;   // kg
     std::vector<double> inertia_primary;    // (3,) kg·km²
     std::vector<double> inertia_secondary;  // (3,) kg·km²
+    std::vector<double> potential_energy;   // (N,) mutual gravitational potential, kg·km²·s⁻²
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

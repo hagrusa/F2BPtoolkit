@@ -1,0 +1,13 @@
+
+
+Add more examples:
+
+-an example using SPICE Kernels (and verify it works)
+-an example using polehedral shapes
+-higher order gravity terms
+-planetary flyby
+
+
+Add surface gravity / surface slope calculation for shape models
+Add test particles? Collision detection?
+Lightcurve emulator?

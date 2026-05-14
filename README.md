@@ -354,8 +354,8 @@ The C++ layer works in **km, kg, s**. The Python API converts all inputs from SI
 - Davis, A.B. & Scheeres, D.J. (2020). Doubly synchronous binary asteroid mass parameter observability. *Icarus*, 341, 113439. https://doi.org/10.1016/j.icarus.2019.113439
 
 And if you use the tidal torque, flyby, or solar tide perturbations:
-- Meyer, A.J. & Scheeres, D.J. (2021). The effect of planetary flybys on singly synchronous binary asteroids. *Icarus*, 367, 114554. https://doi.org/10.1016/j.icarus.2021.114554 *(flyby perturbation)*
-- Meyer, A.J., Scheeres, D.J., Agrusa, H.F., Noiset, G., McMahon, J., Karatekin, O., Hirabayashi, M., & Nakano, R. (2023). Energy dissipation in synchronous binary asteroids. *Icarus*, 391, 115323. https://doi.org/10.1016/j.icarus.2022.115323 *(tidal torque perturbation)*
+- Meyer, A.J. & Scheeres, D.J. (2021). The effect of planetary flybys on singly synchronous binary asteroids. *Icarus*, 367, 114554. https://doi.org/10.1016/j.icarus.2021.114554 
+- Meyer, A.J., Scheeres, D.J., Agrusa, H.F., Noiset, G., McMahon, J., Karatekin, O., Hirabayashi, M., & Nakano, R. (2023). Energy dissipation in synchronous binary asteroids. *Icarus*, 391, 115323. https://doi.org/10.1016/j.icarus.2022.115323 
 
 ---
 
